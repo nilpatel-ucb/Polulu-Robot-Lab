@@ -20,8 +20,8 @@ target C {
   single-threaded: true
 }
 
-import Accelerometer from <pololu-3pi-c/IMU.lf>
-import Display from <pololu-3pi-c/Display.lf>
+import Accelerometer from "lib/IMU.lf"
+import Display from "lib/Display.lf"
 
 main reactor {
   a = new Accelerometer()
@@ -39,9 +39,13 @@ main reactor {
     static char buf1[17];
     static char buf2[17];
 
-    snprintf(buf0, 17, "x:%2.4f", a.x->value);
-    snprintf(buf1, 17, "y:%2.4f", a.y->value);
-    snprintf(buf2, 17, "z:%2.4f", a.z->value);
+    float outputz = ((a.z->value)-.0165)/1.0035;
+    float outputy=((a.y->value)+0.052356)/.9904;
+    float outputx=((a.x->value)-.01365)/.99885;
+    
+    snprintf(buf0, 17, "x:%2.4f", outputx);
+    snprintf(buf1, 17, "y:%2.4f", outputy);
+    snprintf(buf2, 17, "z:%2.4f", outputz);
 
     lf_set(d.line0, buf0);
     lf_set(d.line1, buf1);
