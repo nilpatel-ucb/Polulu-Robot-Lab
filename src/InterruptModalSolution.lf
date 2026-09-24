@@ -1,0 +1,74 @@
+/**
+ * Blink the default LED on the
+ * <a href="https://www.pololu.com/docs/0J86">Pololu 3pi+ 2040 robot</a>.
+ * @author Abhi Gundrala
+ * @author Edward A. Lee
+ */
+ 
+target C {
+  platform: {
+    name: "rp2040",
+    board: "pololu_3pi_2040_robot"
+  },
+  single-threaded: true,
+  keepalive: true
+}
+import Display from "lib/Display.lf"
+
+
+main reactor {
+    preamble {=
+  #include <stdio.h>
+  #include <pico/stdlib.h>
+  #include <hardware/gpio.h>
+  static void* action;
+  static uint32_t last_press_ms = 0;
+
+  void button_callback(uint gpio, uint32_t events) {
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if ((now - last_press_ms) > 200){
+        last_press_ms = now;
+        lf_schedule(action, 0);
+    }
+}
+//   #include <pololu-3pi-c>
+=}
+
+physical action press;
+d = new Display();
+state count: int = 0;
+
+reaction(startup) -> press {=
+    action = press;
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_IN);
+    gpio_set_irq_enabled_with_callback(25, GPIO_IRQ_EDGE_FALL, true, &button_callback);
+    =}
+
+initial mode Up {
+    timer up_timer(0, 250 ms)
+    reaction(up_timer) -> d.line0, d.line1 {=
+        self->count++;
+        static char buf[17];
+        snprintf(buf, 17, "Count: %d", self->count);
+        lf_set(d.line0, buf);
+        lf_set(d.line1, "Counting UP");
+        =}
+        reaction(press) -> reset(Down) {=
+            lf_set_mode(Down);
+            =}
+}
+mode Down {
+    timer down_timer(0, 500 ms)
+    reaction(down_timer) -> d.line0, d.line1 {=
+        self->count--;
+        static char buf[17];
+        snprintf(buf, 17, "Count: %d", self->count);
+        lf_set(d.line0, buf);
+        lf_set(d.line1, "Counting DOWN");
+        =}
+        reaction(press) -> reset(Up) {=
+            lf_set_mode(Up);
+            =}
+}
+}
