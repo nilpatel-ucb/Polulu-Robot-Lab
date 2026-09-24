@@ -10,7 +10,8 @@ target C {
     name: "rp2040",
     board: "pololu_3pi_2040_robot"
   },
-  single-threaded: true
+  single-threaded: true,
+  keepalive: true
 }
 import Display from "lib/Display.lf"
 preamble {=
@@ -21,21 +22,22 @@ preamble {=
 =}
 
 main reactor {
-
+  state previous_bit: uint32_t = 1
   timer t(0, 250 ms)
 //   state led_on: bool = false
   dis = new Display()
 
   //First thing is get the state of the button
 reaction(startup) {=
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_IN);
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_IN);
+    gpio_pull_up(25);
   =}
   
 
   
   reaction(t) -> dis.line0, dis.line1{=
-    uint32_t *in = (uint32_t *) 0xd0000004;
+    volatile uint32_t *in = (volatile uint32_t *) 0xd0000004;
     // printf(*in)
     uint32_t value = *in;
     // printf(value)
@@ -43,33 +45,32 @@ reaction(startup) {=
     // unit32_t gpio_v = PICO_DEFAULT_LED_PIN
     // vol = gpio_get(gpio_v)
     // uint32_t bit; 
-    uint32_t bit = (value >> PICO_DEFAULT_LED_PIN) & 1UL;
+    uint32_t bit = (value >> 25) & 1UL;
     static char buf0[17];
     static char buf1[17];
 
-
-    if (bit == 0){
+    //Its just pressed 
+    if (bit == 0 && self-> previous_bit == 1){
        
-         snprintf(buf0, 17,  "Button Pressed");
-         instant_t passed_time1 = lf_time_logical_elapsed();
-         snprintf(buf1, 17,  passed_time1);
-
-   
-
+        snprintf(buf0, 17,  "Button Pressed");
+        instant_t passed_time1 = lf_time_logical_elapsed();
+        snprintf(buf1, 17,"%lld", (long long)  passed_time1/1000000);
         lf_set(dis.line0, buf0);
         lf_set(dis.line1, buf1);
        
 
-
-    } else {
+      //JUST RELEEAAASED
+    } else if (bit == 1 && self-> previous_bit == 0){
      
         snprintf(buf0, 17, "Button Not Pressed");
         instant_t passed_time2 = lf_time_logical_elapsed();
-        snprintf(buf1, 17,  passed_time2);
+        snprintf(buf1, 17,"%lld", (long long)  passed_time2/1000000);   
 
         lf_set(dis.line0, buf0);
         lf_set(dis.line1, buf1);
     }
+
+    self->previous_bit = bit;
 
   =}
 
