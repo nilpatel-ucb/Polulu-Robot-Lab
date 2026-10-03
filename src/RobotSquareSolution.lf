@@ -1,0 +1,98 @@
+/**
+ * Template for robot driving lab exercises. This template just periodically switches between a
+ * STOPPED and a DRIVING mode, updating the LCD display on each change of mode.
+ */
+target C {
+  platform: {
+    name: "rp2040",
+    board: "pololu_3pi_2040_robot"
+  },
+  single-threaded: true
+}
+
+import Display from "lib/Display.lf"
+import AngleToDistance from "RobotEncoderSolution.lf"
+import Encoders from "lib/Encoders.lf"
+import Motors from "lib/Motors.lf"
+import GyroAngle from "lib/IMU.lf"
+
+reactor Robot {
+  // input left_distance: float
+  input right_dist: float
+  input angle: float
+  output left_power: float 
+  output right_power: float
+  output notify: string  // Notify of mode change.
+  state start_distance: float = 0 //gets instiatined inside
+  // state start_angle: float = 0
+  state turns: int = 0
+
+  // reaction(startup) -> notify {=
+  //   lf_set(notify, "INIT");
+  // =}
+
+  initial mode DRIVING {
+    //starts the intial driving to go up to half a meter (50cm)
+    reaction(startup) -> left_power, right_power, notify {=
+      lf_set(notify, "DRIVING");
+      lf_set(left_power, .1f);
+      lf_set(right_power, .1f);
+
+      =}
+    reaction(right_dist) -> reset(TURNING), left_power, right_power, notify {=
+      if (right_dist->value - self->start_distance >= 50.0f ) {
+        self->turns++;
+        //to get ready to go into turns allowing us to turn
+        lf_set(left_power, -.1f);
+        lf_set(right_power, .1f);
+        lf_set(notify, "TURNING");
+        lf_set_mode(TURNING);
+        
+      }
+    =}
+  }
+
+  mode TURNING {
+    //Turns by 90 degree
+    reaction(right_dist, angle) -> reset(DRIVING),left_power, right_power, notify {=
+      float target = 90.0f*self->turns; //idea is that we use turns * by angle to figure which corner we are at
+      if (angle->value >= target){
+        self->start_distance = right_dist-> value;
+        lf_set(left_power, .1f);
+        lf_set(right_power,.1f);
+        lf_set(notify, "DRIVING");
+        lf_set_mode(DRIVING);
+      }
+        =}
+      }
+  }
+
+main reactor {
+  timer t(0, 2 ms)
+  encoder = new Encoders()
+  display = new Display()
+  // left_distance = new AngleToDistance()
+  right_distance = new AngleToDistance()
+  gyro = new GyroAngle()
+  robot = new Robot()
+  motor = new Motors()
+
+  encoder.right -> right_distance.angle
+
+  right_distance.distance -> robot.right_dist
+
+  gyro.z -> robot.angle //inserting into angle
+
+  robot.left_power -> motor.left_power
+  robot.right_power -> motor.right_power //connecting it here
+
+  robot.notify -> display.line0
+
+  reaction(t) ->encoder.trigger, gyro.trigger {=
+    lf_set(encoder.trigger, true);
+    lf_set(gyro.trigger, true);
+
+    =}
+
+
+}
