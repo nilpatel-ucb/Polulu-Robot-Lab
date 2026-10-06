@@ -1,0 +1,164 @@
+/**
+ * Template for robot driving lab exercises. This template just periodically switches between a
+ * STOPPED and a DRIVING mode, updating the LCD display on each change of mode.
+ */
+target C {
+  platform: {
+    name: "rp2040",
+    board: "pololu_3pi_2040_robot"
+  },
+  single-threaded: true
+}
+
+import Display from "lib/Display.lf"
+import AngleToDistance from "RobotEncoderSolution.lf"
+import Encoders from "lib/Encoders.lf"
+import Motors from "lib/Motors.lf"
+import GyroAngle from "lib/IMU.lf"
+import Line from "lib/Line.lf"
+
+reactor Robot {
+  // input left_distance: float
+//   input right_dist: float
+  input angle: float
+  //input line_sensor: uint16_t[5]
+//   input line_r_sensor: float
+//   input line_c1_sensor: float
+//   input line_c2_sensor: float
+//   input line_c3_sensor: float
+  output left_power: float 
+  output right_power: float
+  output notify: string  // Notify of mode change.
+//   state start_distance: float = 0 //gets instiatined inside
+  // state start_angle: float = 0
+
+  state back_start: instant_t = 0
+  timer t(0, 100ms)
+  timer seconds(0, 1 s)  // Timer used to display seconds.
+  timer end_calibration(10s)
+  state count: int = 0
+  display = new Display()
+  line_sensor = new Line()
+  
+    reaction(t) -> line_sensor.trigger {=
+       lf_set(line_sensor.trigger, true);
+    =}
+
+  initial mode CALI {
+    reaction(startup) -> display.line0, display.line1, display.line2 {=
+        lf_set(display.line0, "CALIBRATING");
+        lf_set(display.line1, "Roll robot over");
+        lf_set(display.line2, "light and dark.");
+        =}
+
+    reaction(seconds) -> display.line3 {=
+        static char buf[17];
+        snprintf(buf, 17, "time:%8d s", self->count++);
+        lf_set(display.line3, buf);
+    =}
+
+    reaction(end_calibration) -> reset(DRIVING), line_sensor.calibrate, notify, left_power, right_power {=
+        lf_set(line_sensor.calibrate, false);
+        lf_set(notify, "DRIVING");
+        lf_set(left_power, .2f);
+        lf_set(right_power, .2f);
+        lf_set_mode(DRIVING);
+
+    =}
+  }
+
+  mode DRIVING {
+    //starts the intial driving to go up to half a meter (50cm)
+
+
+    reaction(line_sensor.reflect) -> reset(BACKING), left_power, right_power, notify {=
+    // IF Dark on center we back and turn right
+      if (line_sensor.reflect->value[0] >= 800 || line_sensor.reflect->value[1] >= 800|| line_sensor.reflect->value[2] >= 800|| line_sensor.reflect->value[3] >= 800 || line_sensor.reflect->value[4] >= 800) {
+ 
+        //to get ready to go into turns allowing us to turn
+        lf_set(left_power, -.2f);
+        lf_set(right_power, -.2f);
+        lf_set(notify, "BACKING");
+        lf_set_mode(BACKING);
+      }
+    =}
+
+   
+  }
+  mode BACKING {
+        reaction(angle,line_sensor.reflect) -> reset(TURNING), left_power, right_power, notify {=
+            instant_t now = lf_time_logical_elapsed();
+            if ((now - self->back_start) > 500000000) {
+                      if (line_sensor.reflect->value[0] >= 900 ) {
+                    
+                            //to get ready to go into turns allowing us to turn
+                            lf_set(left_power, .2f);
+                            lf_set(right_power, -.2f);
+                            lf_set(notify, "TURNING RIGHT");
+                            lf_set_mode(TURNING);
+                            
+                        }
+                             //IF dark on right or center we turn to the right
+                        if (line_sensor.reflect->value[1] >= 800|| line_sensor.reflect->value[2] >= 800|| line_sensor.reflect->value[3] >= 800 || line_sensor.reflect->value[4] >= 800) {
+                            //to get ready to go into turns allowing us to turn
+                            lf_set(left_power, -.2f);
+                            lf_set(right_power, .2f);
+                            lf_set(notify, "TURNING LEFT");
+                            lf_set_mode(TURNING);
+                            
+                        }
+            }
+            =}
+        }
+
+  mode TURNING {
+    //Turns by 90 degree  line = new Line()
+    reaction( angle) -> reset(DRIVING),left_power, right_power, notify {=
+      float target = 90.0f; 
+      float first_angle = angle->value; 
+      if (angle->value - first_angle >= target){ //we keep on turning till the change in angle is 90
+        // self->start_distance = right_dist-> value;
+        lf_set(left_power, .2f);
+        lf_set(right_power,.2f);
+        lf_set(notify, "DRIVING");
+        lf_set_mode(DRIVING);
+      }
+        =}
+      }
+
+  }
+
+main reactor {
+  timer t(0, 2 ms)
+  encoder = new Encoders()
+  display = new Display()
+  // left_distance = new AngleToDistance()
+  right_distance = new AngleToDistance()
+  gyro = new GyroAngle()
+  robot = new Robot()
+  motor = new Motors()
+  //line = new Line()
+  
+
+  encoder.right -> right_distance.angle
+
+ 
+
+  gyro.z -> robot.angle //inserting into angle
+  //line.reflect -> robot.line_sensor
+
+  robot.left_power -> motor.left_power
+  robot.right_power -> motor.right_power //connecting it here
+
+  robot.notify -> display.line0
+
+  reaction(t) ->encoder.trigger, gyro.trigger {=
+    lf_set(encoder.trigger, true);
+    lf_set(gyro.trigger, true);
+
+    =}
+    //reaction(t) -> line.trigger {=
+     //   lf_set(line.trigger, true);
+    //=}
+
+}
