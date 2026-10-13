@@ -42,6 +42,7 @@ reactor Robot {
   timer end_calibration(10s)
   state count: int = 0
   state first_angle: float = 0; 
+  state hitting: int = 0;
 
   display = new Display()
   line_sensor = new Line()
@@ -79,24 +80,39 @@ reactor Robot {
 
     reaction(line_sensor.reflect) -> reset(BACKING), left_power, right_power, notify {=
     // IF Dark on center we back and turn right
-      if (line_sensor.reflect->value[0] >= 800 || line_sensor.reflect->value[1] >= 800|| line_sensor.reflect->value[2] >= 800|| line_sensor.reflect->value[3] >= 800 || line_sensor.reflect->value[4] >= 800) {
- 
-        //to get ready to go into turns allowing us to turn
+        self->back_start = lf_time_logical_elapsed();
+
+      if (line_sensor.reflect->value[1] >= 900|| line_sensor.reflect->value[2] >= 900|| line_sensor.reflect->value[3] >= 900 || line_sensor.reflect->value[4] >= 900) {
+        //turning left
+        self->hitting = 1;
+        
         lf_set(left_power, -.2f);
         lf_set(right_power, -.2f);
         lf_set(notify, "BACKING");
         lf_set_mode(BACKING);
-      }
-    =}
+  
+    }
 
-   
+    
+    if (line_sensor.reflect->value[0] >= 900){
+      self->hitting = 2;
+        
+        lf_set(left_power, -.2f);
+        lf_set(right_power, -.2f);
+        lf_set(notify, "BACKING");
+        lf_set_mode(BACKING);
+    }
+  
+      =}
+
+    
   }
   mode BACKING {
         reaction(angle,line_sensor.reflect) -> reset(TURNING), left_power, right_power, notify {=
             instant_t now = lf_time_logical_elapsed();
-            if ((now - self->back_start) > 1000000000) {
+            if ((now - self->back_start) > 500000000) {
                       self->first_angle = angle->value;
-                      if (line_sensor.reflect->value[0] >= 900 ) {
+                      if (self->hitting == 2) {
                     
                             //to get ready to go into turns allowing us to turn
                             lf_set(left_power, .2f);
@@ -105,13 +121,14 @@ reactor Robot {
                             
                         }
                              //IF dark on right or center we turn to the right
-                        if (line_sensor.reflect->value[1] >= 800|| line_sensor.reflect->value[2] >= 800|| line_sensor.reflect->value[3] >= 800 || line_sensor.reflect->value[4] >= 800) {
+                        if (self->hitting == 1) {
                             //to get ready to go into turns allowing us to turn
                             lf_set(left_power, -.2f);
                             lf_set(right_power, .2f);
                             lf_set(notify, "TURNING LEFT");
                             
                         }
+                            self->hitting = 0;
                             lf_set_mode(TURNING);
 
             }
@@ -122,7 +139,7 @@ reactor Robot {
     //Turns by 90 degree  line = new Line()
 
     reaction( angle) -> reset(DRIVING),left_power, right_power, notify {=
-      float target = 90.0f; 
+      float target = 45.0f; 
       if (abs(angle->value - self->first_angle) >= target){ //we keep on turning till the change in angle is 90
         // self->start_distance = right_dist-> value;
         lf_set(left_power, .2f);
