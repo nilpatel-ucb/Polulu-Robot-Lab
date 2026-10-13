@@ -17,6 +17,10 @@ import Motors from "lib/Motors.lf"
 import GyroAngle from "lib/IMU.lf"
 import Line from "lib/Line.lf"
 
+preamble {=
+#include <math.h>
+  =}
+
 reactor Robot {
   // input left_distance: float
 //   input right_dist: float
@@ -37,6 +41,8 @@ reactor Robot {
   timer seconds(0, 1 s)  // Timer used to display seconds.
   timer end_calibration(10s)
   state count: int = 0
+  state first_angle: float = 0; 
+
   display = new Display()
   line_sensor = new Line()
   
@@ -88,14 +94,14 @@ reactor Robot {
   mode BACKING {
         reaction(angle,line_sensor.reflect) -> reset(TURNING), left_power, right_power, notify {=
             instant_t now = lf_time_logical_elapsed();
-            if ((now - self->back_start) > 500000000) {
+            if ((now - self->back_start) > 1000000000) {
+                      self->first_angle = angle->value;
                       if (line_sensor.reflect->value[0] >= 900 ) {
                     
                             //to get ready to go into turns allowing us to turn
                             lf_set(left_power, .2f);
                             lf_set(right_power, -.2f);
                             lf_set(notify, "TURNING RIGHT");
-                            lf_set_mode(TURNING);
                             
                         }
                              //IF dark on right or center we turn to the right
@@ -104,19 +110,20 @@ reactor Robot {
                             lf_set(left_power, -.2f);
                             lf_set(right_power, .2f);
                             lf_set(notify, "TURNING LEFT");
-                            lf_set_mode(TURNING);
                             
                         }
+                            lf_set_mode(TURNING);
+
             }
             =}
         }
 
   mode TURNING {
     //Turns by 90 degree  line = new Line()
+
     reaction( angle) -> reset(DRIVING),left_power, right_power, notify {=
       float target = 90.0f; 
-      float first_angle = angle->value; 
-      if (angle->value - first_angle >= target){ //we keep on turning till the change in angle is 90
+      if (abs(angle->value - self->first_angle) >= target){ //we keep on turning till the change in angle is 90
         // self->start_distance = right_dist-> value;
         lf_set(left_power, .2f);
         lf_set(right_power,.2f);
