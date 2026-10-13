@@ -1,0 +1,172 @@
+/**
+ * Template for robot driving lab exercises. This template just periodically switches between a
+ * STOPPED and a DRIVING mode, updating the LCD display on each change of mode.
+ */
+target C {
+  platform: {
+    name: "rp2040",
+    board: "pololu_3pi_2040_robot"
+  },
+  single-threaded: true
+}
+
+import Display from "lib/Display.lf"
+import AngleToDistance from "RobotEncoderSolution.lf"
+import Encoders from "lib/Encoders.lf"
+import Motors from "lib/Motors.lf"
+import GyroAngle, Accelerometer from "lib/IMU.lf"
+import Line from "lib/Line.lf"
+import Tilt from "lib/Tilt.lf"
+
+
+preamble {=
+#include <math.h>
+  =}
+
+reactor Robot {
+  // input left_distance: float
+//   input right_dist: float
+  input angle: float
+  input row: float
+  input pitch: float
+  //input line_sensor: uint16_t[5]
+//   input line_r_sensor: float
+//   input line_c1_sensor: float
+//   input line_c2_sensor: float
+//   input line_c3_sensor: float
+  output left_power: float 
+  output right_power: float
+  output notify: string  // Notify of mode change.
+//   state start_distance: float = 0 //gets instiatined inside
+  // state start_angle: float = 0
+
+  state back_start: instant_t = 0
+  timer t(0, 100ms)
+  timer seconds(0, 1 s)  // Timer used to display seconds.
+  timer end_calibration(10s)
+  state count: int = 0
+  state first_angle: float = 0; 
+  state direction: bool = true;
+
+  display = new Display()
+  line_sensor = new Line()
+  
+    reaction(t) -> line_sensor.trigger {=
+       lf_set(line_sensor.trigger, true);
+    =}
+
+//   initial mode CALI {
+//     reaction(startup) -> display.line0, display.line1, display.line2 {=
+//         lf_set(display.line0, "CALIBRATING");
+//         lf_set(display.line1, "Roll robot over");
+//         lf_set(display.line2, "light and dark.");
+//         =}
+
+//     reaction(seconds) -> display.line3 {=
+//         static char buf[17];
+//         snprintf(buf, 17, "time:%8d s", self->count++);
+//         lf_set(display.line3, buf);
+//     =}
+
+//     reaction(end_calibration) -> reset(DRIVING), line_sensor.calibrate, notify, left_power, right_power {=
+//         lf_set(line_sensor.calibrate, false);
+//         lf_set(notify, "DRIVING");
+//         lf_set(left_power, .2f);
+//         lf_set(right_power, .2f);
+//         lf_set_mode(DRIVING);
+
+//     =}
+//   }
+
+  initial mode DRIVING {
+    //starts the driving to go up the hill 
+    // We use the actor feedback to keep it in line
+    // detect that we are on the top
+    //rotate it back down 
+    //have centeral velocity 
+    reaction(row) pitch, angle -> reset(TURNING), left_power, right_power, notify{=
+        if (self->direction && (abs(pitch->value) < 3.0f)) {
+            //velocity .2
+            self->first_angle = angle->value
+        }
+
+        =}
+
+    
+    //some control gain multiplied by the regular velocity 
+    //do that seperately for each motor 
+    //split how much each motor rotates 
+    //row angle is between 0 and 90
+    //.01 for control gain and multiply by row devations 
+    //trigger the accleromoter input
+    //psoitive row left, negative row right
+
+
+
+
+
+
+    
+  }
+ 
+
+ 
+
+  
+ 
+
+  mode TURNING {
+    //Turns by 90 degree  line = new Line()
+
+    reaction(angle) -> reset(DRIVING), notify {=
+      float target = 180f; 
+      if (abs(angle->value - self->first_angle) >= target){ //we keep on turning till the change in angle is 90
+        // self->start_distance = right_dist-> value;
+        self->direction = false
+        lf_set(notify, "GOING DOWN");
+        lf_set_mode(DRIVING);
+      }
+        =}
+      }
+
+  }
+
+main reactor {
+  timer t(0, 2 ms)
+  display = new Display()
+  // left_distance = new AngleToDistance()
+  right_distance = new AngleToDistance()
+  gyro = new GyroAngle()
+  robot = new Robot()
+  motor = new Motors()
+  tilt = new Tilt()
+  acc = new Accelerometer()
+
+  gyro.z -> robot.angle //inserting into angle
+  
+  //line.reflect -> robot.line_sensor
+
+  robot.left_power -> motor.left_power
+  robot.right_power -> motor.right_power //connecting it here
+
+  tilt.row -> robot.row
+  tilt.pitch -> robot.pitch
+  acc.x -> tilt.x
+  acc.y -> tilt.y
+  acc.z -> tilt.z
+
+
+  robot.notify -> display.line0
+
+  reaction(t) ->acc.trigger, gyro.trigger {=
+
+    lf_set(gyro.trigger, true);
+    lf_set(acc.trigger, true);
+    
+
+    =}
+    //reaction(t) -> line.trigger {=
+     //   lf_set(line.trigger, true);
+    //=}
+
+}
