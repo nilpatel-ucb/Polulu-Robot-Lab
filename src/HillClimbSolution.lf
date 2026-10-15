@@ -11,11 +11,8 @@ target C {
 }
 
 import Display from "lib/Display.lf"
-import AngleToDistance from "RobotEncoderSolution.lf"
-import Encoders from "lib/Encoders.lf"
 import Motors from "lib/Motors.lf"
 import GyroAngle, Accelerometer from "lib/IMU.lf"
-import Line from "lib/Line.lf"
 import Tilt from "lib/Tilt.lf"
 
 
@@ -39,22 +36,14 @@ reactor Robot {
   output notify: string  // Notify of mode change.
 //   state start_distance: float = 0 //gets instiatined inside
   // state start_angle: float = 0
+  output pitch_d: string
+  output row_d: string
 
-  state back_start: instant_t = 0
-  timer t(0, 100ms)
-  timer seconds(0, 1 s)  // Timer used to display seconds.
-  timer end_calibration(10s)
-  state count: int = 0
-  state first_angle: float = 0; 
-  state direction: bool = true;
+  state first_angle: float = 0
+  state direction: bool = true
+  state seen_slope: bool = false
 
-  display = new Display()
-  line_sensor = new Line()
   
-    reaction(t) -> line_sensor.trigger {=
-       lf_set(line_sensor.trigger, true);
-    =}
-
 //   initial mode CALI {
 //     reaction(startup) -> display.line0, display.line1, display.line2 {=
 //         lf_set(display.line0, "CALIBRATING");
@@ -84,11 +73,40 @@ reactor Robot {
     // detect that we are on the top
     //rotate it back down 
     //have centeral velocity 
-    reaction(row) pitch, angle -> reset(TURNING), left_power, right_power, notify{=
-        if (self->direction && (abs(pitch->value) < 3.0f)) {
-            //velocity .2
-            self->first_angle = angle->value
+    reaction(row) pitch, angle -> reset(TURNING), left_power, right_power, notify, pitch_d, row_d{=
+        static char pbuf[17];
+        static char rbuf[17];
+        snprintf(pbuf, 17, "Pitch: %6.1f", pitch->value);
+        snprintf(rbuf, 17, "Row: %6.1f", row->value);
+        if (abs(pitch->value) > 8.0f) {
+          self->seen_slope = true;
         }
+        if (self->direction && self->seen_slope && fabsf(pitch->value) < 2.0f && fabsf(row->value) < 3.0f) {
+            //velocity .2
+            self->first_angle = angle->value;
+            lf_set(left_power, .1f);
+            lf_set(right_power, -.1f);
+            lf_set(notify, "TURNING");
+            lf_set_mode(TURNING);
+            return;
+
+
+        }
+
+        float left, right; 
+        if (self->direction) {
+          left = .2f - .01f * (row->value);
+          right = .2f  + .01f * (row->value);
+          
+        } else {
+          //for going downhill 
+          //going slower down the hill
+          left = .1f + .01f * (row->value);
+          right = .1f  -  .01f * (row->value);
+        }
+
+        lf_set(right_power, right);
+        lf_set(left_power, left);
 
         =}
 
@@ -119,10 +137,10 @@ reactor Robot {
     //Turns by 90 degree  line = new Line()
 
     reaction(angle) -> reset(DRIVING), notify {=
-      float target = 180f; 
-      if (abs(angle->value - self->first_angle) >= target){ //we keep on turning till the change in angle is 90
+      float target = 180.0f; 
+      if (fabsf(angle->value - self->first_angle) >= target){ //we keep on turning till the change in angle is 90
         // self->start_distance = right_dist-> value;
-        self->direction = false
+        self->direction = false;
         lf_set(notify, "GOING DOWN");
         lf_set_mode(DRIVING);
       }
@@ -132,10 +150,10 @@ reactor Robot {
   }
 
 main reactor {
-  timer t(0, 2 ms)
+  timer t(0, 20 ms)
   display = new Display()
   // left_distance = new AngleToDistance()
-  right_distance = new AngleToDistance()
+
   gyro = new GyroAngle()
   robot = new Robot()
   motor = new Motors()
@@ -149,14 +167,17 @@ main reactor {
   robot.left_power -> motor.left_power
   robot.right_power -> motor.right_power //connecting it here
 
-  tilt.row -> robot.row
-  tilt.pitch -> robot.pitch
   acc.x -> tilt.x
   acc.y -> tilt.y
   acc.z -> tilt.z
+  tilt.row -> robot.pitch
+  tilt.pitch -> robot.row
+
 
 
   robot.notify -> display.line0
+  robot.pitch_d -> display.line1
+  robot.row_d -> display.line2
 
   reaction(t) ->acc.trigger, gyro.trigger {=
 
