@@ -107,7 +107,27 @@ void led_start(void){
 
 }
 
+void led_on(void) {
+  led_state = true; 
+  gpio_put(PICO_DEFAULT_LED_PIN, false);
+  
+}
 
+void led_off(void) {
+  led_state = false; 
+  gpio_put(PICO_DEFAULT_LED_PIN, true);
+  
+}
+
+
+void led0_toggle(void){
+  uint32_t mask = 1u << PICO_DEFAULT_LED_PIN; 
+  gpio_xor_mask(mask);
+}
+
+void do_nothing(void) {
+  return;
+}
 
 
   void lab5_timer_irq_handler(void){
@@ -242,25 +262,38 @@ reaction(check_fire) -> disp.line2 {=
     } 
     
     =}
+reaction(startup) {=
+  virtual_timer_start_repeated(1000000,led0_toggle);
+  virtual_timer_start_repeated(2000000,do_nothing);
+  // gpio_put(PICO_DEFAULT_LED_PIN,false);
+  // led_state = false; 
+  // virtual_timer_start(1000000,led_on);
+  // virtual_timer_start(2000000,led_off);
+  // virtual_timer_start(3000000,led_on);
+  // virtual_timer_start(4000000,led_off);
+  // virtual_timer_start(5000000,led_on);
+  // virtual_timer_start(6000000,led_off);
 
-state blink_id:uint32_t = 0
-timer cancel_timer(5s)
+  =}
 
-reaction(startup){=
-    self->blink_id = virtual_timer_start_repeated(1000000, led_start);
-    // virtual_timer_start(10000000,led_start);
+// state blink_id:uint32_t = 0
+// timer cancel_timer(5s)
 
-    // virtual_timer_start(20000000,led_start);
+// reaction(startup){=
+//     self->blink_id = virtual_timer_start_repeated(1000000, led_start);
+//     // virtual_timer_start(10000000,led_start);
 
-    // virtual_timer_start(30000000,led_start);
+//     // virtual_timer_start(20000000,led_start);
 
-    // virtual_timer_start(40000000,led_start);
+//     // virtual_timer_start(30000000,led_start);
 
-    // virtual_timer_start(50000000,led_start);
+//     // virtual_timer_start(40000000,led_start);
 
-    =}
-  reaction(cancel_timer) {=
-    virtual_timer_cancel(self->blink_id);
+//     // virtual_timer_start(50000000,led_start);
 
-    =}
+//     =}
+//   reaction(cancel_timer) {=
+//     virtual_timer_cancel(self->blink_id);
+
+//     =}
 }
