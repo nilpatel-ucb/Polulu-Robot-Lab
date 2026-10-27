@@ -190,6 +190,20 @@ void led_start(void){
   }
   void virtual_timer_cancel(uint32_t time_id ){
     /* TODO */
+    irq_set_enabled(TIMER_IRQ_0, false);
+    list_remove((node_t*) time_id);
+    free((node_t*) time_id);
+
+    if (linked_list != NULL) {
+      timer_hw->alarm[ALARM_NUM] = linked_list->timer_value; 
+
+    } else{
+      timer_hw->armed = 1u << ALARM_NUM;
+      
+    }
+    irq_set_enabled(TIMER_IRQ_0, true);
+
+    
   }
 
  =}
@@ -228,8 +242,12 @@ reaction(check_fire) -> disp.line2 {=
     } 
     
     =}
+
+state blink_id:uint32_t = 0
+timer cancel_timer(5s)
+
 reaction(startup){=
-    virtual_timer_start_repeated(1000000, led_start);
+    self->blink_id = virtual_timer_start_repeated(1000000, led_start);
     // virtual_timer_start(10000000,led_start);
 
     // virtual_timer_start(20000000,led_start);
@@ -239,6 +257,10 @@ reaction(startup){=
     // virtual_timer_start(40000000,led_start);
 
     // virtual_timer_start(50000000,led_start);
+
+    =}
+  reaction(cancel_timer) {=
+    virtual_timer_cancel(self->blink_id);
 
     =}
 }
