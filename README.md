@@ -9,6 +9,8 @@ It also includes some code from the [pololu-3pi-2040-robot library](https://gith
 
 See the [getting started instructions](https://www.lf-lang.org/embedded-lab/GettingStarted.html) to get started.
 
+Lab 1 objectives and what we did are in [docs/labs.md](docs/labs.md).
+
 ## Emulator
 To run basic tests and monitor GPIO, UART, and other supported peripherals, a [Node.js](https://nodejs.org/en)-based [emulator for the Raspberry Pi Pico](https://docs.wokwi.com/parts/wokwi-pi-pico) is provided in this repo. During the `nix` shell setup for the repo, the Node modules in the `test` directory are installed. This emulator is based on [Wokwi](https://wokwi.com).
 Because it emulates the Pico board, not the Pololu robot, it will not be able to run all the programs for the robot.
