@@ -49,47 +49,26 @@ The history is linear. Each lab branch is the commit where that stage was finish
 ```
 src/                 Lingua Franca programs, one file per exercise
 src/lib/             Display, motors, encoders, IMU, line sensors, bumpers
-src/test/            Motor tests aimed at the Pico emulator
-test/                Wokwi-based Pico emulator and its Node runner
 pico-sdk/            Raspberry Pi Pico SDK (submodule)
 lf-packages/pololu-3pi-c/   Pololu 3pi support library (submodule)
 ```
 
 `Lingo.toml` is the package file the Lingua Franca tools read. The default app entry is `HelloPico`; pass a file to `lfc` to build any other program.
 
-## Build and flash
+## Testing on the robot
 
-The robot has to be in BOOTSEL mode first: hold the B button while pressing reset, and it mounts as a USB drive.
+Each program was tested by flashing it onto the Pololu and running it there. The check was the robot itself: the LCD, the LED, the wheels, and the sensors.
 
-These commands assume the [Lingua Franca compiler](https://www.lf-lang.org/docs/handbook/getting-started) (`lfc`) and `picotool` are on your path. `nix develop` (or `nix-shell`) provides `picotool`, the Arm toolchain, CMake, OpenOCD, and Node. It does not install `lfc`; install that separately.
+1. Put the robot in BOOTSEL mode by holding the B button while pressing reset. It mounts as a USB drive, which is what makes it accept new firmware.
+2. Build the program with the Lingua Franca compiler, `lfc`. That compiles the `.lf` file against the Pico SDK and writes an ELF under `bin/`.
+3. Flash that ELF with `picotool` and start it. This is the Pico command from the lab:
 
 ```bash
-git submodule update --init --recursive
 lfc src/RobotSquareSolution.lf
 picotool load -x bin/RobotSquareSolution.elf
 ```
 
-`lfc` writes the ELF and UF2 under `bin/`. `picotool load -x` flashes the ELF and starts it. Loading the UF2 from the BOOTSEL drive also works.
-
-The Nix shell sets `PICO_SDK_PATH`. Outside Nix, export that variable to the `pico-sdk` checkout before compiling.
-
-## Emulator
-
-`test/` runs a [Wokwi](https://wokwi.com) emulator of the Raspberry Pi Pico, which is enough to watch GPIO, UART, and a few other Pico peripherals. It does not model the 3pi+ chassis, so the driving, line, and IMU programs have to run on the robot.
-
-```bash
-cd test
-npm install
-npm start
-```
-
-Put the `.hex` file you want to run in `test/`. The runner starts one emulator per hex file and writes a text result beside it. A test is marked failing if it is still running after 10 seconds. A Lingua Franca `timeout` property in the target block stops a program earlier:
-
-```
-target C {
-  timeout: 5 sec,
-}
-```
+`picotool load -x bin/<program>.elf` loads the binary into flash and runs it. Swap in whichever file you just built. `lfc` needs to be installed separately. `nix develop` (or `nix-shell`) provides `picotool`, the Arm toolchain, and CMake, and it sets `PICO_SDK_PATH`. The first build also needs the submodules: `git submodule update --init --recursive`.
 
 ## Credits and license
 
